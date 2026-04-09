@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Login</title>
+
+<style>
+body {
+  margin:0;
+  font-family: Arial;
+  background: linear-gradient(135deg,#3b82f6,#6366f1);
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.card {
+  background:white;
+  padding:30px;
+  border-radius:12px;
+  width:320px;
+  box-shadow:0 10px 25px rgba(0,0,0,0.2);
+  animation:fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+  from {opacity:0; transform:translateY(20px);}
+  to {opacity:1; transform:translateY(0);}
+}
+
+input {
+  width:100%;
+  padding:10px;
+  margin:10px 0;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+
+.password-box {
+  position:relative;
+}
+
+.toggle {
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  cursor:pointer;
+  font-size:13px;
+  color:#3b82f6;
+}
+
+button {
+  width:100%;
+  padding:12px;
+  background:#3b82f6;
+  color:white;
+  border:none;
+  border-radius:6px;
+  font-weight:bold;
+}
+
+button:disabled {
+  background:gray;
+}
+
+.error {
+  color:red;
+  font-size:14px;
+  text-align:center;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h2>🔐 Admin Login</h2>
+
+<form id="loginForm">
+
+<input name="username" placeholder="Username" required>
+
+<div class="password-box">
+<input type="password" id="password" name="password" placeholder="Password" required>
+<span class="toggle" onclick="togglePassword()">Show</span>
+</div>
+
+<button id="loginBtn">Login</button>
+
+</form>
+
+<p id="errorMsg" class="error"></p>
+
+</div>
+
+<script>
+
+function togglePassword(){
+  const p=document.getElementById("password");
+  p.type=p.type==="password"?"text":"password";
+}
+
+const form=document.getElementById("loginForm");
+const btn=document.getElementById("loginBtn");
+const errorMsg=document.getElementById("errorMsg");
+
+form.onsubmit=async(e)=>{
+  e.preventDefault();
+
+  btn.disabled=true;
+  btn.innerText="Logging in...";
+
+  // ✅ FIXED: SEND JSON INSTEAD OF FORMDATA
+  const data = {
+    username: form.username.value,
+    password: form.password.value
+  };
+
+  const res=await fetch("/login",{
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json"
+    },
+    body: JSON.stringify(data)
+  });
+
+  const text=await res.text();
+
+  if(text.includes("Invalid")){
+    errorMsg.innerText="❌ Invalid Credentials";
+    btn.disabled=false;
+    btn.innerText="Login";
+  } else {
+    window.location="/dashboard";
+  }
+};
+
+</script>
+
+</body>
+</html>
+

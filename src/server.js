@@ -26,12 +26,12 @@ app.use(session({
   saveUninitialized: false
 }));
 
-// ⚠️ ONLY SERVE STATIC FILES EXCEPT index.html
+// 📁 STATIC FILES
 app.use("/public", express.static(path.join(__dirname, "public")));
 
 // ================= LOGIN =================
 
-// Login page
+// Root → login page
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public/login.html"));
 });
@@ -53,7 +53,7 @@ app.post("/login", (req, res) => {
   res.send("Invalid login");
 });
 
-// 🔐 PROTECTED DASHBOARD
+// Dashboard (protected)
 app.get("/dashboard", (req, res) => {
   if (!req.session.user) {
     return res.redirect("/");
@@ -164,6 +164,9 @@ app.get("/export-logs", (req, res) => {
 
 // ================= START =================
 
-app.listen(3000, () => {
-  console.log("🚀 Server running on port 3000");
+// 🔥 CRITICAL FIX FOR RENDER
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });

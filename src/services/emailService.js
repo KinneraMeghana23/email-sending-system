@@ -1,34 +1,43 @@
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 const { buildEmailTemplate } = require("./templateBuilder");
 const fs = require("fs");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// 🔥 Gmail SMTP transporter (stable config)
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // STARTTLS
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false
+  },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000
+});
 
 async function sendEmail(to, subject, data, attachments) {
   try {
-    console.log("➡️ Sending via Resend to:", to);
+    console.log("➡️ Sending via Nodemailer to:", to);
 
-    // 🔥 Convert attachments to base64 (REQUIRED for Resend)
+    // 📎 Attachments (local files allowed in Nodemailer)
     const formattedAttachments = attachments?.map(file => ({
       filename: file.filename,
-      content: fs.readFileSync(file.path).toString("base64")
+      path: file.path
     }));
 
-    const response = await resend.emails.send({
-      from: "onboarding@resend.dev", // default working sender
+    const info = await transporter.sendMail({
+      from: process.env.EMAIL,
       to: to,
       subject: subject,
       html: buildEmailTemplate(data),
       attachments: formattedAttachments
     });
 
-    // ❗ IMPORTANT: Check for API error properly
-    if (response.error) {
-      console.log("❌ EMAIL ERROR:", response.error.message);
-      return false;
-    }
-
-    console.log("✅ SUCCESS:", response);
+    console.log("✅ SUCCESS:", info.response);
 
     return true;
 

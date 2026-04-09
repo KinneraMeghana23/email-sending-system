@@ -65,6 +65,10 @@ app.post("/count-emails", upload.single("file"), (req, res) => {
   if (!req.file) return res.json({ total: 0 });
 
   const emails = extractEmails(req.file.path);
+
+  // 🧹 Clean uploaded file
+  fs.unlink(req.file.path, () => {});
+
   res.json({ total: emails.length });
 });
 
@@ -105,7 +109,6 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
       let sent = false;
 
       try {
-        // ⏱️ TIMEOUT PROTECTION (10 seconds max per email)
         sent = await Promise.race([
           sendEmail(email, req.body.subject, {
             message: req.body.message,
@@ -136,18 +139,22 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
         console.log("❌ Failed:", email);
       }
 
-      // 🔄 Stream progress
+      // 🔄 Stream progress (safe JSON chunks)
       res.write(JSON.stringify({
         sent: success,
         failed: failed,
         total: emails.length
-      }));
+      }) + "\n");
 
-      // ⚡ Reduced delay (faster)
       await new Promise(r => setTimeout(r, 100));
     }
 
     console.log("🎉 Completed all emails");
+
+    // 🧹 Cleanup files after sending
+    fs.unlink(excelFile.path, () => {});
+    attachments.forEach(f => fs.unlink(f.path, () => {}));
+
     res.end();
 
   } catch (err) {

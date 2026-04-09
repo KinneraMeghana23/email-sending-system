@@ -31,14 +31,11 @@ app.use("/public", express.static(path.join(__dirname, "public")));
 
 // ================= LOGIN =================
 
-// Root → login page
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public/login.html"));
 });
 
-// Handle login
 app.post("/login", (req, res) => {
-
   console.log("INPUT:", req.body.username, req.body.password);
   console.log("ENV:", process.env.LOGIN_USER, process.env.LOGIN_PASS);
 
@@ -53,20 +50,13 @@ app.post("/login", (req, res) => {
   res.send("Invalid login");
 });
 
-// Dashboard (protected)
 app.get("/dashboard", (req, res) => {
-  if (!req.session.user) {
-    return res.redirect("/");
-  }
-
+  if (!req.session.user) return res.redirect("/");
   res.sendFile(path.join(__dirname, "public/index.html"));
 });
 
-// Logout
 app.get("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.redirect("/");
-  });
+  req.session.destroy(() => res.redirect("/"));
 });
 
 // ================= EMAIL COUNT =================
@@ -110,37 +100,58 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
     }));
 
     for (const email of emails) {
+      console.log("➡️ Sending to:", email);
 
-      const sent = await sendEmail(email, req.body.subject, {
-        message: req.body.message,
-        registerLink: req.body.registerLink,
-        whatsappLink: req.body.whatsappLink,
-        whatsappGroupLink: req.body.whatsappGroupLink,
-        youtubeLink: req.body.youtubeLink,
-        attachmentName: attachments.map(f => f.originalname).join(", ")
-      }, emailAttachments);
+      let sent = false;
+
+      try {
+        // ⏱️ TIMEOUT PROTECTION (10 seconds max per email)
+        sent = await Promise.race([
+          sendEmail(email, req.body.subject, {
+            message: req.body.message,
+            registerLink: req.body.registerLink,
+            whatsappLink: req.body.whatsappLink,
+            whatsappGroupLink: req.body.whatsappGroupLink,
+            youtubeLink: req.body.youtubeLink,
+            attachmentName: attachments.map(f => f.originalname).join(", ")
+          }, emailAttachments),
+
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout")), 10000)
+          )
+        ]);
+
+      } catch (err) {
+        console.log("❌ Error for:", email, err.message);
+        sent = false;
+      }
 
       if (sent) {
         success++;
         logEvent({ email, status: "sent" });
+        console.log("✅ Sent:", email);
       } else {
         failed++;
         logEvent({ email, status: "failed" });
+        console.log("❌ Failed:", email);
       }
 
+      // 🔄 Stream progress
       res.write(JSON.stringify({
         sent: success,
         failed: failed,
         total: emails.length
       }));
 
-      await new Promise(r => setTimeout(r, 300));
+      // ⚡ Reduced delay (faster)
+      await new Promise(r => setTimeout(r, 100));
     }
 
+    console.log("🎉 Completed all emails");
     res.end();
 
   } catch (err) {
-    console.log(err);
+    console.log("🔥 Critical error:", err);
     res.end();
   }
 });
@@ -164,7 +175,6 @@ app.get("/export-logs", (req, res) => {
 
 // ================= START =================
 
-// 🔥 CRITICAL FIX FOR RENDER
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {

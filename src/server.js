@@ -26,7 +26,7 @@ app.use(session({
   saveUninitialized: false
 }));
 
-// 📁 STATIC FILES
+// 📁 STATIC
 app.use("/public", express.static(path.join(__dirname, "public")));
 
 // ================= LOGIN =================
@@ -56,7 +56,7 @@ app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/"));
 });
 
-// ================= EMAIL COUNT =================
+// ================= COUNT EMAILS =================
 
 app.post("/count-emails", upload.single("file"), (req, res) => {
   if (!req.file) return res.json({ total: 0 });
@@ -88,39 +88,22 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
     let success = 0;
     let failed = 0;
 
-    const emailAttachments = attachments.map(f => ({
-      filename: f.originalname,
-      path: f.path
-    }));
+    console.log("📬 Total emails to send:", emails.length);
 
     for (const email of emails) {
       console.log("➡️ Sending to:", email);
 
-      let sent = false;
-
-      try {
-        sent = await Promise.race([
-          sendEmail(
-            email,
-            req.body.subject,
-            {
-              message: req.body.message,
-              registerLink: req.body.registerLink,
-              whatsappLink: req.body.whatsappLink,
-              whatsappGroupLink: req.body.whatsappGroupLink,
-              youtubeLink: req.body.youtubeLink,
-              attachmentName: attachments.map(f => f.originalname).join(", ")
-            },
-            emailAttachments
-          ),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), 10000)
-          )
-        ]);
-      } catch (err) {
-        console.log("❌ Error for:", email, err.message);
-        sent = false;
-      }
+      const sent = await sendEmail(
+        email,
+        req.body.subject,
+        {
+          message: req.body.message,
+          registerLink: req.body.registerLink,
+          whatsappLink: req.body.whatsappLink,
+          whatsappGroupLink: req.body.whatsappGroupLink,
+          youtubeLink: req.body.youtubeLink,
+        }
+      );
 
       if (sent) {
         success++;
@@ -133,11 +116,10 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
 
     console.log("🎉 Completed all emails");
 
-    // 🧹 Cleanup
+    // cleanup
     fs.unlink(excelFile.path, () => {});
     attachments.forEach(f => fs.unlink(f.path, () => {}));
 
-    // ✅ FINAL RESPONSE (no streaming)
     res.json({
       message: "Emails processed",
       success,
@@ -160,12 +142,6 @@ app.get("/logs", (req, res) => {
   } catch {
     res.json([]);
   }
-});
-
-app.get("/export-logs", (req, res) => {
-  const data = fs.readFileSync("logs.json", "utf8");
-  res.setHeader("Content-Disposition", "attachment; filename=logs.json");
-  res.send(data);
 });
 
 // ================= START =================

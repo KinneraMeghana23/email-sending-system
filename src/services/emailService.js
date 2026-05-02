@@ -5,22 +5,26 @@ const { buildEmailTemplate } = require("./templateBuilder");
 
 // 🌏 SES Client (Mumbai region)
 const sesClient = new SESClient({
-  region: process.env.AWS_REGION, // ap-south-1
+  region: process.env.AWS_REGION,
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
 });
 
-async function sendEmail(to, subject, data, attachments = []) {
+async function sendEmail(to, subject, data) {
   try {
-    console.log("➡️ Sending via SES to:", to);
+    console.log("🚀 Sending email to:", to);
 
-    // 🧾 Convert HTML template
+    // 🔍 Validate ENV
+    if (!process.env.EMAIL) {
+      throw new Error("Sender EMAIL missing in environment variables");
+    }
+
     const htmlBody = buildEmailTemplate(data);
 
     const params = {
-      Source: process.env.EMAIL, // verified sender
+      Source: process.env.EMAIL,
       Destination: {
         ToAddresses: [to],
       },

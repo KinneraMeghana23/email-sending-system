@@ -1,48 +1,52 @@
-const nodemailer = require("nodemailer");
-const { buildEmailTemplate } = require("./templateBuilder");
-const fs = require("fs");
+'use strict';
 
-// 🔥 Gmail SMTP transporter (stable config)
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // STARTTLS
-  auth: {
-    user: process.env.EMAIL,
-    pass: process.env.PASSWORD
+const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
+const { buildEmailTemplate } = require("./templateBuilder");
+
+// 🌏 SES Client (Mumbai region)
+const sesClient = new SESClient({
+  region: process.env.AWS_REGION, // ap-south-1
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
-  tls: {
-    rejectUnauthorized: false
-  },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000
 });
 
-async function sendEmail(to, subject, data, attachments) {
+async function sendEmail(to, subject, data, attachments = []) {
   try {
-    console.log("➡️ Sending via Nodemailer to:", to);
+    console.log("➡️ Sending via SES to:", to);
 
-    // 📎 Attachments (local files allowed in Nodemailer)
-    const formattedAttachments = attachments?.map(file => ({
-      filename: file.filename,
-      path: file.path
-    }));
+    // 🧾 Convert HTML template
+    const htmlBody = buildEmailTemplate(data);
 
-    const info = await transporter.sendMail({
-      from: process.env.EMAIL,
-      to: to,
-      subject: subject,
-      html: buildEmailTemplate(data),
-      attachments: formattedAttachments
-    });
+    const params = {
+      Source: process.env.EMAIL, // verified sender
+      Destination: {
+        ToAddresses: [to],
+      },
+      Message: {
+        Subject: {
+          Data: subject,
+          Charset: "UTF-8",
+        },
+        Body: {
+          Html: {
+            Data: htmlBody,
+            Charset: "UTF-8",
+          },
+        },
+      },
+    };
 
-    console.log("✅ SUCCESS:", info.response);
+    const command = new SendEmailCommand(params);
+    const response = await sesClient.send(command);
+
+    console.log("✅ SES SUCCESS:", response.MessageId);
 
     return true;
 
   } catch (error) {
-    console.log("❌ EMAIL ERROR:", error.message);
+    console.log("❌ SES ERROR:", error.message);
     return false;
   }
 }

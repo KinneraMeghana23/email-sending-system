@@ -21,7 +21,7 @@ app.use(express.json());
 
 // 🔐 SESSION
 app.use(session({
-  secret: "supersecretkey",
+  secret: process.env.SESSION_SECRET || "supersecretkey",
   resave: false,
   saveUninitialized: false
 }));
@@ -36,9 +36,6 @@ app.get("/", (req, res) => {
 });
 
 app.post("/login", (req, res) => {
-  console.log("INPUT:", req.body.username, req.body.password);
-  console.log("ENV:", process.env.LOGIN_USER, process.env.LOGIN_PASS);
-
   if (
     req.body.username === process.env.LOGIN_USER &&
     req.body.password === process.env.LOGIN_PASS
@@ -66,9 +63,7 @@ app.post("/count-emails", upload.single("file"), (req, res) => {
 
   const emails = extractEmails(req.file.path);
 
-  // 🧹 Clean uploaded file
   fs.unlink(req.file.path, () => {});
-
   res.json({ total: emails.length });
 });
 
@@ -104,21 +99,24 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
     }));
 
     for (const email of emails) {
-      console.log("➡️ Sending to:", email);
 
       let sent = false;
 
       try {
         sent = await Promise.race([
-          sendEmail(email, req.body.subject, {
-            message: req.body.message,
-            registerLink: req.body.registerLink,
-            whatsappLink: req.body.whatsappLink,
-            whatsappGroupLink: req.body.whatsappGroupLink,
-            youtubeLink: req.body.youtubeLink,
-            attachmentName: attachments.map(f => f.originalname).join(", ")
-          }, emailAttachments),
-
+          sendEmail(
+            email,
+            req.body.subject,
+            {
+              message: req.body.message,
+              registerLink: req.body.registerLink,
+              whatsappLink: req.body.whatsappLink,
+              whatsappGroupLink: req.body.whatsappGroupLink,
+              youtubeLink: req.body.youtubeLink,
+              attachmentName: attachments.map(f => f.originalname).join(", ")
+            },
+            emailAttachments
+          ),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Timeout")), 10000)
           )
@@ -132,26 +130,23 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
       if (sent) {
         success++;
         logEvent({ email, status: "sent" });
-        console.log("✅ Sent:", email);
       } else {
         failed++;
         logEvent({ email, status: "failed" });
-        console.log("❌ Failed:", email);
       }
 
-      // 🔄 Stream progress (safe JSON chunks)
+      // 🔄 Stream progress
       res.write(JSON.stringify({
         sent: success,
         failed: failed,
         total: emails.length
       }) + "\n");
 
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 50));
     }
 
     console.log("🎉 Completed all emails");
 
-    // 🧹 Cleanup files after sending
     fs.unlink(excelFile.path, () => {});
     attachments.forEach(f => fs.unlink(f.path, () => {}));
 
@@ -159,7 +154,7 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
 
   } catch (err) {
     console.log("🔥 Critical error:", err);
-    res.end();
+    res.end(JSON.stringify({ error: "Server error" }));
   }
 });
 

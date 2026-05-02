@@ -62,8 +62,8 @@ app.post("/count-emails", upload.single("file"), (req, res) => {
   if (!req.file) return res.json({ total: 0 });
 
   const emails = extractEmails(req.file.path);
-
   fs.unlink(req.file.path, () => {});
+
   res.json({ total: emails.length });
 });
 
@@ -75,14 +75,9 @@ const multiUpload = upload.fields([
 ]);
 
 app.post("/send-bulk-live", multiUpload, async (req, res) => {
-
-  res.setHeader("Content-Type", "application/json");
-  res.setHeader("Transfer-Encoding", "chunked");
-
   try {
     if (!req.files || !req.files["file"]) {
-      res.write(JSON.stringify({ error: "No Excel uploaded" }));
-      return res.end();
+      return res.json({ error: "No Excel uploaded" });
     }
 
     const excelFile = req.files["file"][0];
@@ -99,6 +94,7 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
     }));
 
     for (const email of emails) {
+      console.log("➡️ Sending to:", email);
 
       let sent = false;
 
@@ -121,7 +117,6 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
             setTimeout(() => reject(new Error("Timeout")), 10000)
           )
         ]);
-
       } catch (err) {
         console.log("❌ Error for:", email, err.message);
         sent = false;
@@ -134,27 +129,25 @@ app.post("/send-bulk-live", multiUpload, async (req, res) => {
         failed++;
         logEvent({ email, status: "failed" });
       }
-
-      // 🔄 Stream progress
-      res.write(JSON.stringify({
-        sent: success,
-        failed: failed,
-        total: emails.length
-      }) + "\n");
-
-      await new Promise(r => setTimeout(r, 50));
     }
 
     console.log("🎉 Completed all emails");
 
+    // 🧹 Cleanup
     fs.unlink(excelFile.path, () => {});
     attachments.forEach(f => fs.unlink(f.path, () => {}));
 
-    res.end();
+    // ✅ FINAL RESPONSE (no streaming)
+    res.json({
+      message: "Emails processed",
+      success,
+      failed,
+      total: emails.length
+    });
 
   } catch (err) {
     console.log("🔥 Critical error:", err);
-    res.end(JSON.stringify({ error: "Server error" }));
+    res.status(500).json({ error: "Server error" });
   }
 });
 
